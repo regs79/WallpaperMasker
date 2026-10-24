@@ -8,6 +8,7 @@
   :root { --bg: #1b1b1f; --panel: #26262b; --ink: #f2f2f5; --muted: #a0a0a8; --line: #3a3a41; --well: #141417; --accent: #3d8bff; }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
