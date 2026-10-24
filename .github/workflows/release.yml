@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build app bundle
+        run: Scripts/make-app.sh
+
+      - name: Zip
+        run: ditto -c -k --keepParent WallpaperMasker.app WallpaperMasker.zip
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" WallpaperMasker.zip \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "Ad-hoc signed build. macOS will say it can't verify the developer: open System Settings → Privacy & Security and click **Open Anyway**, or run \`xattr -d com.apple.quarantine WallpaperMasker.app\`."

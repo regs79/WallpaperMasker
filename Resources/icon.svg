@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Placeholder app icon: a display whose menu bar strip and window corners are masked. -->
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="0.55" stop-color="#8a5cf6"/>
+      <stop offset="1" stop-color="#ff6b8b"/>
+    </linearGradient>
+    <clipPath id="screen"><rect x="92" y="132" width="840" height="760" rx="96"/></clipPath>
+  </defs>
+  <!-- macOS icon squircle backdrop -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#111318"/>
+  <g clip-path="url(#screen)">
+    <rect x="92" y="132" width="840" height="760" fill="url(#wall)"/>
+    <!-- the mask: everything outside the zoomed window, in black -->
+    <path fill="#000" fill-rule="evenodd" d="
+      M92 132 H932 V892 H92 Z
+      M132 300 h760 a40 40 0 0 1 40 40 v512 a40 40 0 0 1 -40 40 h-760 a40 40 0 0 1 -40 -40 v-512 a40 40 0 0 1 40 -40 z"/>
+  </g>
+</svg>

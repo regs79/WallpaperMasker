@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wallpaper Masker renderer tests</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, Menlo, monospace; margin: 24px; color: #222; background: #fff; }
+  .pass { color: #0a7a2f; } .fail { color: #c0262c; font-weight: 600; }
+  h1 { font-size: 18px; } #summary { font-weight: 700; margin-top: 12px; }
+</style>
+</head>
+<body>
+<h1>Wallpaper Masker — renderer pixel tests</h1>
+<p>Same checks as <code>Tests/WallpaperMaskerCoreTests</code>, run against <code>docs/renderer.js</code>.</p>
+<ol id="results"></ol>
+<p id="summary">running…</p>
+<script src="presets.js"></script>
+<script src="renderer.js"></script>
+<script>
+(() => {
+  const results = document.getElementById('results');
+  let failures = 0, total = 0;
+  const check = (name, cond) => {
+    total++; if (!cond) failures++;
+    const li = document.createElement('li');
+    li.className = cond ? 'pass' : 'fail';
+    li.textContent = (cond ? 'PASS ' : 'FAIL ') + name;
+    results.appendChild(li);
+  };
+  const near = (a, b, tol = 6) => Math.abs(a - b) <= tol;
+
+  const mbp14 = () => wmSpecFromPoints(1512, 982, 2, 34, 16, 'fill');
+  const CS = { colorSpace: 'srgb' };
+  const canvas = (w, h, draw) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d', CS); draw(ctx, w, h); return c;
+  };
+  const white = (w, h) => canvas(w, h, (ctx) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); });
+  const stripes = (w, h) => canvas(w, h, (ctx) => {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#000';
+    for (let x = 0; x < w; x += 16) ctx.fillRect(x, 0, 8, h);
+  });
+  const px = (c, x, y) => { const d = c.getContext('2d', CS).getImageData(x, y, 1, 1).data; return { r: d[0], g: d[1], b: d[2], lum: (d[0] + d[1] + d[2]) / 3 | 0 }; };
+  const eq = (p, r, g, b) => p.r === r && p.g === g && p.b === b;
+
+  // --- mapping ---
+  let m = WMRenderer.mapping(3024, 1964, mbp14());
+  check('native mapping rect (0,68,3024,1896) r=32', m.rect.x === 0 && m.rect.y === 68 && m.rect.w === 3024 && m.rect.h === 1896 && m.radius === 32);
+  m = WMRenderer.mapping(6016, 3900, mbp14());
+  check('6016×3900 mapping rect (6,135,6005,3765) r=64', m.rect.x === 6 && m.rect.y === 135 && m.rect.w === 6005 && m.rect.h === 3765 && m.radius === 64);
+  const vis = WMRenderer.visibleRect(6016, 3900, mbp14());
+  check('visible rect (6,0,6005,3900)', vis.x === 6 && vis.y === 0 && vis.w === 6005 && vis.h === 3900);
+
+  // --- regions ---
+  for (const [w, h] of [[3024, 1964], [6016, 3900]]) {
+    const img = white(w, h);
+    const map = WMRenderer.mapping(w, h, mbp14());
+    const top = map.rect.y, rad = map.radius, cx = w >> 1, bottom = h - 1, x0 = map.rect.x, x1 = map.rect.x + map.rect.w - 1;
+    for (const [label, bar, corners] of [['both', true, true], ['bar only', true, false], ['corners only', false, true]]) {
+      const spec = mbp14(); spec.maskMenuBar = bar; spec.maskCorners = corners;
+      const out = WMRenderer.render(img, w, h, spec, CS);
+      const B = bar ? 0 : 255, C = corners ? 0 : 255, L = `${w}×${h} ${label}:`;
+      check(`${L} strip row 0`, px(out, cx, 0).lum === B);
+      check(`${L} strip last row`, px(out, cx, top - 1).lum === B);
+      check(`${L} first window row white`, px(out, cx, top).lum === 255);
+      check(`${L} TL corner`, px(out, x0, top).lum === C);
+      check(`${L} TR corner`, px(out, x1, top).lum === C);
+      check(`${L} BL corner`, px(out, x0, bottom).lum === C);
+      check(`${L} BR corner`, px(out, x1, bottom).lum === C);
+      check(`${L} inside TL arc white`, px(out, x0 + rad, top + rad).lum === 255);
+      check(`${L} inside BR arc white`, px(out, x1 - rad, bottom - rad).lum === 255);
+      check(`${L} left edge mid white`, px(out, x0 + 1, h >> 1).lum === 255);
+      check(`${L} outside TL arc`, px(out, x0 + (rad >> 2), top + (rad >> 2)).lum === C);
+      check(`${L} outside BR arc`, px(out, x1 - (rad >> 2), bottom - (rad >> 2)).lum === C);
+      check(`${L} seam row`, px(out, x0, top - 1).lum === B);
+    }
+  }
+
+  // --- colours ---
+  {
+    const spec = mbp14();
+    spec.menuBarStyle.color = { r: 1, g: 0, b: 0, a: 1 };
+    spec.cornerStyle.color = { r: 0, g: 0, b: 1, a: 1 };
+    const out = WMRenderer.render(white(3024, 1964), 3024, 1964, spec, CS);
+    check('red strip', eq(px(out, 1512, 34), 255, 0, 0));
+    check('blue corner', eq(px(out, 1, 1962), 0, 0, 255));
+    check('row above window is strip colour', eq(px(out, 0, 67), 255, 0, 0));
+    check('window top-left pixel is corner colour', eq(px(out, 0, 68), 0, 0, 255));
+  }
+
+  // --- margins ---
+  {
+    const out = WMRenderer.render(white(6016, 3900), 6016, 3900, mbp14(), CS);
+    check('left margin painted', px(out, 0, 1950).lum === 0 && px(out, 5, 1950).lum === 0);
+    check('first on-screen column untouched', px(out, 6, 1950).lum === 255);
+    check('last on-screen column untouched', px(out, 6010, 1950).lum === 255);
+    check('right margin painted', px(out, 6011, 1950).lum === 0 && px(out, 6015, 1950).lum === 0);
+    const spec = mbp14(); spec.maskMenuBar = false; spec.cornerStyle.color = { r: 0, g: 0, b: 1, a: 1 };
+    const co = WMRenderer.render(white(6016, 3900), 6016, 3900, spec, CS);
+    check('corners only → margin uses corner colour', eq(px(co, 0, 1950), 0, 0, 255));
+    check('corners only → strip untouched', px(co, 3008, 10).lum === 255);
+  }
+
+  // --- frost ---
+  {
+    const [w, h] = [3024, 1964];
+    const spec = mbp14();
+    spec.menuBarStyle = { color: { r: 0, g: 0, b: 0, a: 0.5 }, blurPx: 48 };
+    spec.cornerStyle = spec.menuBarStyle;
+    const out = WMRenderer.render(stripes(w, h), w, h, spec, CS);
+    const s1 = px(out, w >> 1, 34).r, s2 = px(out, (w >> 1) + 8, 34).r;
+    check(`frosted strip blurred then tinted ≈64 (got ${s1}, ${s2})`, near(s1, 64, 8) && near(s2, 64, 8));
+    check('blur removed the stripes', near(s1, s2, 2));
+    check('bottom-left wedge matches strip in column 0', near(px(out, 0, h - 1).r, px(out, 0, 34).r, 3));
+    check('wedge interior matches strip in column 4', near(px(out, 4, 72).r, px(out, 4, 34).r, 3));
+    const i1 = px(out, w >> 1, h >> 1).r, i2 = px(out, (w >> 1) + 8, h >> 1).r;
+    check('window interior still binary stripes', (i1 === 0 || i1 === 255) && i1 !== i2);
+    const b1 = px(out, w >> 1, 68).r, b2 = px(out, (w >> 1) + 8, 68).r;
+    check('strip bottom edge crisp', near(px(out, w >> 1, 67).r, 64, 8) && (b1 === 0 || b1 === 255) && b1 !== b2);
+
+    const t = mbp14();
+    t.menuBarStyle = { color: { r: 1, g: 0, b: 0, a: 0.5 }, blurPx: 0 };
+    const to = WMRenderer.render(stripes(w, h), w, h, t, CS);
+    const a = px(to, 4, 34), b = px(to, 12, 34);
+    check('translucent tint keeps stripes: black→~(128,0,0)', [a, b].some(p => near(p.r, 128) && p.g === 0 && p.b === 0));
+    check('translucent tint keeps stripes: white→~(255,128,128)', [a, b].some(p => p.r === 255 && near(p.g, 128) && near(p.b, 128)));
+  }
+
+  const summary = document.getElementById('summary');
+  summary.textContent = failures === 0 ? `ALL PASS (${total} checks)` : `${failures} of ${total} FAILED`;
+  summary.className = failures === 0 ? 'pass' : 'fail';
+})();
+</script>
+</body>
+</html>
