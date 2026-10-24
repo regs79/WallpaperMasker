@@ -34,7 +34,9 @@ a { color: var(--accent); }
 .preview { display: flex; flex-direction: column; min-height: 420px; background: var(--well); position: relative; }
 .preview.drag::after { content: ""; position: absolute; inset: 8px; border: 3px dashed var(--accent); border-radius: 12px; pointer-events: none; }
 .scroll { flex: 1; overflow: auto; min-height: 0; }
-.stage { min-width: 100%; min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px; }
+/* Sized to its content (so padding stays on all sides when zoomed) and at least the viewport.
+   Grid centring, unlike flex justify-content, never pushes overflow to an unreachable negative offset. */
+.stage { display: grid; place-items: center; width: max-content; min-width: 100%; min-height: 100%; padding: 16px; }
 #canvas { display: block; box-shadow: 0 6px 24px rgba(0,0,0,.25); image-rendering: auto; }
 #canvas.pixelated { image-rendering: pixelated; }
 .empty { text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
